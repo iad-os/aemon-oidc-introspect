@@ -26,6 +26,9 @@
     "type": "git",
     "url": "https://github.com/iad-os/aemon-oidc-introspect.git"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "private": false,
   "license": "MIT",
   "engines": {
