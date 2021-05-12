@@ -36,7 +36,17 @@ const expressApp = express()
         if (!authorization) return;
         const [, token] = authorization.split(' ');
         return token;
-      }
+      },
+      doPost: async (
+          req: Request,
+          url: string,
+          queryString: string,
+          options?: { headers: Record<string, string> }
+        ) => {
+          return await axios.create().post(url, queryString, options);
+        },
+      logger: (req: Request, level: string, msg: string, payload?: any) =>
+        logger[level](msg, payload),
     })
   );
 ```
