@@ -1,11 +1,10 @@
-import httpStatus from 'http-status';
-import { RequestHandler, Request } from 'express';
-import jwt from 'jws';
-import NodeCache from 'node-cache';
-import query from 'query-string';
-import reduce from 'lodash.reduce';
-import axios, { AxiosInstance } from 'axios';
 import crypto from 'crypto';
+import { Request, RequestHandler } from 'express';
+import httpStatus from 'http-status';
+import jwt from 'jws';
+import reduce from 'lodash.reduce';
+import LRUCache from 'lru-cache';
+import query from 'query-string';
 
 export type Identity = {
   subject: string;
@@ -24,10 +23,42 @@ export type Identity = {
   clientId: string;
 };
 
+export type TokenData = {
+  active: string;
+  aud: string;
+  iss: string;
+  sub: string;
+  email: string;
+  email_verified: string;
+  realm_access: string;
+  resource_access: string;
+  exp: string;
+  iat: string;
+  clientId: string;
+  family_name: string;
+  given_name: string;
+};
+
+export type doPostHandler = (
+  req: Request,
+  url: string,
+  queryString: string,
+  options?: {
+    headers: Record<string, string>;
+  }
+) => Promise<{ data: TokenData }>;
+
+export type loggerHandler = (
+  req: Request,
+  level: 'info' | 'debug' | 'error' | 'trace' | 'warn',
+  msg: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: any
+) => void;
+
 declare module 'http' {
   interface IncomingMessage {
     uid: Identity;
-    axios: ReturnType<typeof axios.create>;
   }
 }
 
@@ -40,13 +71,17 @@ export interface IssuerEndpoints {
   };
 }
 
-export async function checkIntrospectCredentials(options: {
-  issuers: IssuerEndpoints[];
-  devMode?: DevModeConfig;
-}): Promise<void> {
+export async function checkIntrospectCredentials(
+  req: Request,
+  options: {
+    issuers: IssuerEndpoints[];
+    devMode?: DevModeConfig;
+    doPost: doPostHandler;
+  }
+): Promise<void> {
   if (options?.devMode?.enabled) return;
   const checks = await Promise.allSettled(
-    options.issuers.map(issuer => introspectToken(axios.create(), issuer, 'dontcaretoken'))
+    options.issuers.map(issuer => introspectToken(issuer, 'dontcaretoken', options.doPost, req))
   );
 
   const errors = checks
@@ -71,31 +106,26 @@ export interface DevModeConfig {
 export default function aemonOidcIntrospect(options: {
   issuers: IssuerEndpoints[];
   extractToken: (req: Request) => string | undefined;
-  decorateAxiosInstace?: (axiosInstace: AxiosInstance) => void;
+  doPost: doPostHandler;
+  logger: loggerHandler;
   devMode?: DevModeConfig;
 }): RequestHandler {
   const { issuers } = options;
 
-  const IntrospectCache = new NodeCache({
-    deleteOnExpire: true,
-    maxKeys: 1000,
-    stdTTL: 300,
-    useClones: true,
+  const IntrospectCache = new LRUCache({
+    max: 1000,
+    maxAge: 300,
   });
 
   if (options?.devMode?.enabled) {
     return (req, res, next) => {
       req.uid = { ...(options?.devMode?.fakeUid as Identity), issuedAt: new Date().getTime() };
-      Math.random() > 0.98 || req.log.error('---- DEV-MODE: ENABLED ----');
+      Math.random() > 0.98 || options.logger(req, 'error', '---- DEV-MODE: ENABLED ----');
       next();
     };
   }
 
   return function (req, res, next) {
-    if (options.decorateAxiosInstace) {
-      options.decorateAxiosInstace(req.axios);
-    }
-
     const tokenInfo = extractToken(options.extractToken(req));
 
     if (tokenInfo === undefined) {
@@ -106,10 +136,10 @@ export default function aemonOidcIntrospect(options: {
     const cacheKey = keyFor(signature);
 
     // Search UID in cache
-    const uid = IntrospectCache.get<Identity & { active: boolean }>(cacheKey);
+    const uid = IntrospectCache.get(cacheKey) as Identity;
 
     if (uid) {
-      req.log.trace({ ...uid }, 'INTROSPECT-CACHE-HIT');
+      options.logger(req, 'trace', 'INTROSPECT-CACHE-HIT', { ...uid });
       // Also cache active:false token
       if (uid.active) {
         req.uid = uid;
@@ -121,24 +151,24 @@ export default function aemonOidcIntrospect(options: {
     }
     const { payload } = decodeToken(token) || {};
     if (!payload) {
-      req.log.warn({ payload }, 'INTROSPECT-INVALID-TOKEN-HIT');
+      options.logger(req, 'warn', 'INTROSPECT-INVALID-TOKEN-HIT', { payload });
       IntrospectCache.set(cacheKey, { active: false }, 1800);
       res.status(httpStatus.UNAUTHORIZED).send();
       return;
     }
     const issuer = issuers.find(({ issuer }) => issuer === payload?.iss);
     if (!issuer) {
-      req.log.warn({ payload }, 'INTROSPECT-UNKNOWN-ISSUER-HIT');
+      options.logger(req, 'warn', 'INTROSPECT-UNKNOWN-ISSUER-HIT', { payload });
       IntrospectCache.set(signature, { active: false }, 1800);
       res.status(httpStatus.UNAUTHORIZED).send();
       return;
     }
-    introspectToken(req.axios, issuer, token)
+    introspectToken(issuer, token, options.doPost, req)
       .then(({ data }) => {
         const { active } = data;
 
         if (!active) {
-          req.log.warn({ active: false, issuer }, 'INTROSPECT-CACHE-PUT - ACTIVE:FALSE');
+          options.logger(req, 'warn', 'INTROSPECT-CACHE-PUT - ACTIVE:FALSE', { active: false, issuer });
           IntrospectCache.set(signature, { active: false }, 1800);
           res.status(httpStatus.UNAUTHORIZED).send();
           return;
@@ -147,7 +177,11 @@ export default function aemonOidcIntrospect(options: {
         req.uid = buildUid(data, issuer, token);
 
         const exp = req.uid.expires - Date.now() / 1000 || 1800;
-        req.log.debug({ req: { subject: req.uid.subject }, exp, uid: req.uid }, 'INTROSPECT-CACHE-PUT - ACTIVE:TRUE');
+        options.logger(req, 'debug', 'INTROSPECT-CACHE-PUT - ACTIVE:TRUE', {
+          req: { subject: req.uid.subject },
+          exp,
+          uid: req.uid,
+        });
         IntrospectCache.set(signature, req.uid, exp);
         next();
       })
@@ -194,8 +228,8 @@ export default function aemonOidcIntrospect(options: {
   }
 }
 
-function introspectToken(axios: AxiosInstance, issuer: IssuerEndpoints, token: string) {
-  return axios.post(issuer.introspection_endpoint, query.stringify({ token }), {
+function introspectToken(issuer: IssuerEndpoints, token: string, doPost: doPostHandler, req: Request) {
+  return doPost(req, issuer.introspection_endpoint, query.stringify({ token }), {
     headers: {
       authorization: toBasic(issuer.client.client_id, issuer.client.client_secret),
       'Content-Type': 'application/x-www-form-urlencoded',
