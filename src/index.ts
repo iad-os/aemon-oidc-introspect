@@ -70,7 +70,7 @@ export interface DevModeConfig {
 
 export default function aemonOidcIntrospect(options: {
   issuers: IssuerEndpoints[];
-  extractToken: (req: Request) => string;
+  extractToken: (req: Request) => string | undefined;
   decorateAxiosInstace?: (axiosInstace: AxiosInstance) => void;
   devMode?: DevModeConfig;
 }): RequestHandler {
@@ -230,7 +230,7 @@ function decodeToken(token: string): jwt.Signature {
   return tokenContent;
 }
 
-function extractToken(token: string): { signature: string; token: string } | undefined {
+function extractToken(token: string | undefined): { signature: string; token: string } | undefined {
   if (!token) return;
   const [, , signature] = token.split('.');
   return { signature, token };
