@@ -202,9 +202,11 @@ export default function aemonOidcIntrospect(options: {
       resource_access,
       exp,
       iat,
-      clientId,
+      client_id,
       family_name,
       given_name,
+      name,
+      preferred_username,
     } = data;
 
     const allRoles = extractAllRoles(realm_access, resource_access);
@@ -223,7 +225,9 @@ export default function aemonOidcIntrospect(options: {
       allRoles,
       expires: exp,
       issuedAt: iat,
-      clientId,
+      clientId: client_id,
+      name,
+      username: preferred_username,
     };
   }
 }
