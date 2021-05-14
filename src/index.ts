@@ -224,12 +224,18 @@ export default function aemonOidcIntrospect(options: {
       roles,
       allRoles,
       expires: exp,
+      expiresIn: expiresIn(exp),
       issuedAt: iat,
       clientId: client_id,
       name,
       username: preferred_username,
     };
   }
+}
+
+function expiresIn(exp: number): number {
+  const value = Math.max.apply(null, [exp * 1000 - Date.now(), 0]);
+  return Math.floor(value / 1000);
 }
 
 function introspectToken(issuer: IssuerEndpoints, token: string, doPost: doPostHandler, req: Request) {
