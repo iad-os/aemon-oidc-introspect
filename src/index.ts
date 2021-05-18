@@ -21,6 +21,9 @@ export type Identity = {
   issuedAt: number;
   active: boolean;
   clientId: string;
+  expiresIn: number;
+  name: string;
+  username: string;
 };
 
 export type TokenData = {
@@ -190,7 +193,7 @@ export default function aemonOidcIntrospect(options: {
       });
   };
 
-  function buildUid(data: any, issuer: IssuerEndpoints, token: string) {
+  function buildUid(data: any, issuer: IssuerEndpoints, token: string): Identity {
     const {
       active,
       aud,
