@@ -1,7 +1,7 @@
 {
   "name": "@iad-os/aemon-oidc-introspect",
   "version": "0.2.9",
-  "description": "Axios Injector",
+  "description": "Aemon Oidc Introspect",
   "maintainers": [
     {
       "name": "Daniele Fiungo",
@@ -35,7 +35,7 @@
     "node": ">=10.0.0"
   },
   "scripts": {
-    "lint": "tslint  --project tsconfig.json -t codeFrame 'src/**/*.ts' 'test/**/*.ts'",
+    "lint": "eslint . --ext .ts,.tsx",
     "prebuild": "rimraf dist",
     "build": "tsc --module commonjs && typedoc --out docs --target es6 --theme minimal --mode file src",
     "start": "rollup -c rollup.config.ts -w",
@@ -81,7 +81,7 @@
     "@typescript-eslint/parser": "^4.6.1",
     "coveralls": "^3.1.0",
     "cross-env": "^7.0.2",
-    "eslint": "^7.13.0",
+    "eslint": "^7.32.0",
     "eslint-config-prettier": "^6.15.0",
     "eslint-plugin-prettier": "^3.1.4",
     "jest": "^26.6.3",
