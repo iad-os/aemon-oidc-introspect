@@ -1,6 +1,6 @@
 {
   "name": "@iad-os/aemon-oidc-introspect",
-  "version": "0.2.10",
+  "version": "0.2.9",
   "description": "Aemon Oidc Introspect",
   "maintainers": [
     {
