@@ -59,6 +59,14 @@ export type loggerHandler = (
   payload?: any
 ) => void;
 
+export type AemonOption = {
+  issuers: IssuerEndpoints[];
+  extractToken: (req: Request) => string | undefined;
+  doPost: doPostHandler;
+  logger: loggerHandler;
+  devMode?: DevModeConfig;
+};
+
 declare module 'http' {
   interface IncomingMessage {
     uid: Identity;
@@ -74,14 +82,7 @@ export interface IssuerEndpoints {
   };
 }
 
-export async function checkIntrospectCredentials(
-  req: Request,
-  options: {
-    issuers: IssuerEndpoints[];
-    devMode?: DevModeConfig;
-    doPost: doPostHandler;
-  }
-): Promise<void> {
+export async function checkIntrospectCredentials(req: Request, options: AemonOption): Promise<void> {
   if (options?.devMode?.enabled) return;
   const checks = await Promise.allSettled(
     options.issuers.map(issuer => introspectToken(issuer, 'dontcaretoken', options.doPost, req))
@@ -106,13 +107,7 @@ export interface DevModeConfig {
   fakeUid: Identity;
 }
 
-export default function aemonOidcIntrospect(options: {
-  issuers: IssuerEndpoints[];
-  extractToken: (req: Request) => string | undefined;
-  doPost: doPostHandler;
-  logger: loggerHandler;
-  devMode?: DevModeConfig;
-}): RequestHandler {
+export default function aemonOidcIntrospect(options: AemonOption): RequestHandler {
   const { issuers } = options;
 
   const IntrospectCache = new LRUCache({
