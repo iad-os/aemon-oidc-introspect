@@ -4,7 +4,7 @@ import httpStatus from 'http-status';
 import jwt from 'jws';
 import reduce from 'lodash.reduce';
 import LRUCache from 'lru-cache';
-import query from 'query-string';
+import query from 'qs';
 
 export type Identity = {
   subject: string;
@@ -150,14 +150,14 @@ export default function aemonOidcIntrospect(options: AemonOption): RequestHandle
     const { payload } = decodeToken(token) || {};
     if (!payload) {
       options.logger(req, 'warn', 'INTROSPECT-INVALID-TOKEN-HIT', { payload });
-      IntrospectCache.set(cacheKey, { active: false }, 1800);
+      IntrospectCache.set(cacheKey, { active: false }, {});
       res.status(httpStatus.UNAUTHORIZED).send();
       return;
     }
     const issuer = issuers.find(({ issuer }) => issuer === payload?.iss);
     if (!issuer) {
       options.logger(req, 'warn', 'INTROSPECT-UNKNOWN-ISSUER-HIT', { payload });
-      IntrospectCache.set(signature, { active: false }, 1800);
+      IntrospectCache.set(signature, { active: false }, { ttl: 1800 });
       res.status(httpStatus.UNAUTHORIZED).send();
       return;
     }
@@ -167,7 +167,7 @@ export default function aemonOidcIntrospect(options: AemonOption): RequestHandle
 
         if (!active) {
           options.logger(req, 'warn', 'INTROSPECT-CACHE-PUT - ACTIVE:FALSE', { active: false, issuer });
-          IntrospectCache.set(signature, { active: false }, 1800);
+          IntrospectCache.set(signature, { active: false }, { ttl: 1800 });
           res.status(httpStatus.UNAUTHORIZED).send();
           return;
         }
@@ -180,7 +180,7 @@ export default function aemonOidcIntrospect(options: AemonOption): RequestHandle
           exp,
           uid: req.uid,
         });
-        IntrospectCache.set(signature, req.uid, exp);
+        IntrospectCache.set(signature, req.uid, { ttl: exp });
         next();
       })
       .catch(err => {
