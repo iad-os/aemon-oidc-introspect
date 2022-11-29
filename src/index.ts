@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Request, RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 import httpStatus from 'http-status';
 import jwt from 'jws';
 import reduce from 'lodash.reduce';
@@ -188,6 +188,7 @@ export default function aemonOidcIntrospect(options: AemonOption): RequestHandle
       });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function buildUid(data: any, issuer: IssuerEndpoints, token: string): Identity {
     const {
       active,
@@ -245,6 +246,7 @@ function introspectToken(issuer: IssuerEndpoints, token: string, doPost: doPostH
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractSelfRoles(resource_access: any, { client }: IssuerEndpoints) {
   return (resource_access && resource_access[client.client_id] && resource_access[client.client_id].roles) || [];
 }
