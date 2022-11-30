@@ -107,7 +107,9 @@ export interface DevModeConfig {
   fakeUid: Identity;
 }
 
-export default function aemonOidcIntrospect(options: AemonOption): RequestHandler {
+export type AemonOidcIntrospectFunction = (options: AemonOption) => RequestHandler;
+
+const aemonOidcIntrospect: AemonOidcIntrospectFunction = (options): RequestHandler => {
   const { issuers } = options;
 
   const IntrospectCache = new LRUCache({
@@ -230,7 +232,7 @@ export default function aemonOidcIntrospect(options: AemonOption): RequestHandle
       username: preferred_username,
     };
   }
-}
+};
 
 function expiresIn(exp: number): number {
   const value = Math.max.apply(null, [exp * 1000 - Date.now(), 0]);
@@ -283,3 +285,7 @@ function extractToken(token: string | undefined): { signature: string; token: st
 function keyFor(text: string) {
   return crypto.createHash('md5').update(text).digest('hex');
 }
+
+export { aemonOidcIntrospect };
+
+export default aemonOidcIntrospect;
