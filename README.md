@@ -58,7 +58,7 @@ const myMiddleware: RequestHandler = function (req, res, next) {
   // ... code here
   if (!req.uid) {
     logger.info('User IDentity not found.');
-    return next(null);
+    res.sendStatus(401)
   }
 
   sendEmail(req.uid.email)
